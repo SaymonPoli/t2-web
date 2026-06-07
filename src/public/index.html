@@ -2,145 +2,202 @@
 <html>
     <head>
         <meta charset="UTF-8" />
-        <title>PouchDB Sync</title>
+        <title>PouchDB Sync - Professor</title>
         <script type="text/javascript" src="rede.js"></script>
-
         <script src="https://cdn.jsdelivr.net/npm/pouchdb/dist/pouchdb.min.js"></script>
+        <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px;
+            }
+            .area-botoes {
+                margin-bottom: 20px;
+            }
+            button {
+                margin-right: 10px;
+                padding: 5px 10px;
+                cursor: pointer;
+            }
+            .disciplina-item {
+                border: 1px solid #ccc;
+                padding: 10px;
+                margin-top: 10px;
+                max-width: 400px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .status-conexao {
+                margin-top: 20px;
+                font-size: 0.9em;
+                color: #666;
+            }
+        </style>
     </head>
 
     <body>
-        <button onclick="login()">Login</button>
+        <div id="app">
+            <div class="area-botoes">
+                <button @click="login">Login</button>
+                <button @click="sincronizar">Sincronizar</button>
+                <button @click="configura">Inicia Semestre</button>
+            </div>
 
-        <button onclick="sincronizar()">Sincronizar</button>
+            <div v-if="listaDisciplinasNomes.length > 0">
+                <h3>Minhas Disciplinas</h3>
+                <div
+                    v-for="nome in listaDisciplinasNomes"
+                    :key="nome"
+                    class="disciplina-item"
+                >
+                    <span>{{ nome }}</span>
+                    <button @click="selecionarDisciplina(nome)">Chamada</button>
+                </div>
+            </div>
 
-        <button onclick="configura()">Inicia Semestre</button>
+            <div class="status-conexao">
+                Status: {{ isOnline ? 'Online' : 'Offline' }}
+            </div>
+        </div>
 
         <script>
+            const { createApp } = Vue;
             const nomesDisciplinas = new PouchDB("lista");
-            var listaDisciplinas = [];
 
-            async function obtemListaBDlocal() {
-                // Pega a lista de todos os bancos de dados que existem localmente
-                let result = await nomesDisciplinas.allDocs({
-                    include_docs: true,
-                });
-                let lista;
-                try {
-                    lista = result.rows[0].doc.lista;
-                } catch (e) {
-                    lista = [];
-                }
-                return lista;
-            }
-            async function removeBDlocais(lista) {
-                if (!lista) return;
-                for (let a = 0; a < lista.length; a++) {
-                    try {
-                        let db = new PouchDB(lista[a]);
-                        await db.destroy();
-                    } catch (e) {
-                        console.log("Erro removendo:" + lista[a]);
-                    }
-                }
-            }
-
-            async function dadosDisciplina(nome) {
-                let dados = await GET("/disciplinas/" + nome);
-                return dados;
-            }
-            async function qtdDisciplinas() {
-                try {
-                    let resultado = await nomesDisciplinas.allDocs({
-                        include_docs: true,
-                    });
-
-                    let l = resultado.rows[0].doc.lista;
-                    console.log(
-                        "Quantidade de disciplinas no banco de dados local:" +
-                            l.length,
+            createApp({
+                data() {
+                    return {
+                        listaDisciplinasNomes: [],
+                        isOnline: navigator.onLine,
+                        disciplinaSelecionada: null,
+                    };
+                },
+                async mounted() {
+                    window.addEventListener(
+                        "online",
+                        () => (this.isOnline = true),
                     );
-                    for (let a = 0; a < l.length; a++) console.log(l[a]);
-                } catch (e) {}
-            }
+                    window.addEventListener(
+                        "offline",
+                        () => (this.isOnline = false),
+                    );
+                    await this.qtdDisciplinas();
+                },
+                methods: {
+                    // --- Funções Originais Mantidas/Adaptadas ---
+                    async login() {
+                        const dados = await POST("/login", {
+                            email: "fabio@ufsc.br",
+                            senha: "123",
+                        });
+                        token = dados.token;
+                        console.log("TOKEN:", token);
+                    },
 
-            async function atualizaLista(lista) {
-                let doc = { _id: "0", lista: lista };
-                try {
-                    // tenta buscar documento existente
-                    const existente = await nomesDisciplinas.get(doc._id);
+                    async configura() {
+                        let lista = await this.obtemListaDisciplinasServidor();
+                        if (lista) {
+                            console.log("* Remove todos os dados");
+                            let x = await this.obtemListaBDlocal();
+                            await this.removeBDlocais(x);
+                            await this.atualizaLista(lista);
 
-                    // mantém _rev atual
-                    doc._rev = existente._rev;
+                            console.log("* Obtem dados do servidor");
+                            for (let a = 0; a < lista.length; a++) {
+                                let dados = await this.dadosDisciplina(
+                                    lista[a],
+                                );
+                                await this.criaBancoDados(lista[a], dados);
+                            }
+                            await this.qtdDisciplinas();
+                        } else {
+                            console.log("Voce nao tem acesso ao sistema");
+                        }
+                    },
 
-                    // atualiza
-                    const resposta = await nomesDisciplinas.put(doc);
-                } catch (err) {
-                    // documento não existe
-                    if (err.status === 404) {
-                        const resposta = await nomesDisciplinas.put(doc);
+                    async sincronizar() {
+                        console.log("Sincronização global iniciada...");
+                        // Lógica de sincronização será detalhada no Commit 5
+                    },
 
-                        console.log("Documento criado", resposta);
-                    } else {
-                        console.error(err);
-                    }
-                }
-            }
-            async function criaBancoDados(bd, dados) {
-                listaDisciplinas.push(new PouchDB(bd));
-            }
-            async function obtemListaDisciplinasServidor() {
-                let lista = [];
-                try {
-                    lista = await GET("/disciplinas");
-                } catch (e) {
-                    console.log("eeeeeeeeeee" + e);
-                }
-                return lista;
-            }
-            async function configura() {
-                // Pega a lista de disciplinas atuais
-                let lista;
-                lista = await obtemListaDisciplinasServidor();
-                if (lista) {
-                    // Se consegue se logar e pegar a lista, remove os bancos de dados atuais e atualiza tudo
-                    //
-                    //
-                    //
-                    // Remove todos os bancos de dados e remove a lista de disciplinas
-                    //
-                    console.log("* Remove todos os dados");
-                    let x = await obtemListaBDlocal();
-                    removeBDlocais(x);
-                    atualizaLista(lista);
-                    console.log("* Obtem dados do servidor");
+                    async obtemListaBDlocal() {
+                        let result = await nomesDisciplinas.allDocs({
+                            include_docs: true,
+                        });
+                        try {
+                            return result.rows[0].doc.lista;
+                        } catch (e) {
+                            return [];
+                        }
+                    },
 
-                    console.log("Lista recebida " + lista);
-                    for (let a = 0; a < lista.length; a++) {
-                        let dados = await dadosDisciplina(lista[0]);
-                        criaBancoDados(lista[a], dados);
-                    }
+                    async removeBDlocais(lista) {
+                        if (!lista) return;
+                        for (let a = 0; a < lista.length; a++) {
+                            try {
+                                let db = new PouchDB(lista[a]);
+                                await db.destroy();
+                            } catch (e) {
+                                console.log("Erro removendo:" + lista[a]);
+                            }
+                        }
+                    },
 
-                    qtdDisciplinas();
-                } else {
-                    console.log("Voce nao tem acesso ao sistema");
-                }
-            }
-            // LOGIN
-            async function login() {
-                const dados = await POST("/login", {
-                    email: "fabio@ufsc.br",
-                    senha: "123",
-                });
-                token = dados.token;
-                console.log("TOKEN:", token);
-            }
+                    async atualizaLista(lista) {
+                        let doc = { _id: "0", lista: lista };
+                        try {
+                            const existente = await nomesDisciplinas.get(
+                                doc._id,
+                            );
+                            doc._rev = existente._rev;
+                            await nomesDisciplinas.put(doc);
+                        } catch (err) {
+                            if (err.status === 404)
+                                await nomesDisciplinas.put(doc);
+                            else console.error(err);
+                        }
+                    },
 
-            // sincronização
-            async function sincronizar() {
-                const resposta = await POST("/sync/dec0020", dados);
-                console.log(resposta);
-            }
-            qtdDisciplinas();
+                    async dadosDisciplina(nome) {
+                        return await GET("/disciplinas/" + nome);
+                    },
+
+                    async criaBancoDados(bd, dados) {
+                        // Inicializa o banco local PouchDB para a disciplina
+                        new PouchDB(bd);
+                    },
+
+                    async obtemListaDisciplinasServidor() {
+                        try {
+                            return await GET("/disciplinas");
+                        } catch (e) {
+                            console.log("Erro ao buscar lista: " + e);
+                            return null;
+                        }
+                    },
+
+                    async qtdDisciplinas() {
+                        try {
+                            let resultado = await nomesDisciplinas.allDocs({
+                                include_docs: true,
+                            });
+                            this.listaDisciplinasNomes =
+                                resultado.rows[0].doc.lista;
+                            console.log(
+                                "Disciplinas locais:",
+                                this.listaDisciplinasNomes.length,
+                            );
+                        } catch (e) {
+                            this.listaDisciplinasNomes = [];
+                        }
+                    },
+
+                    selecionarDisciplina(nome) {
+                        alert("Abrindo chamada de: " + nome);
+                    },
+                },
+            }).mount("#app");
         </script>
     </body>
 </html>
