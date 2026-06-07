@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo - Vue</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; }
+        h1 { color: #333; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #eee; }
+        tr:nth-child(even) { background-color: #fafafa; }
+        .presente { color: green; font-weight: bold; }
+        .ausente { color: red; font-weight: bold; }
+        .status-msg { margin-top: 10px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Controle de Frequência Institucional</h1>
+
+        <div v-if="loading" class="status-msg">Carregando dados...</div>
+        <div v-else-if="erro" class="status-msg" style="color: red;">{{ erro }}</div>
+        <div v-else-if="registros.length === 0" class="status-msg">Nenhum registro encontrado.</div>
+
+        <table v-else>
+            <thead>
+                <tr>
+                    <th>Disciplina</th>
+                    <th>Data</th>
+                    <th>Aluno</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="doc in registrosFiltrados" :key="doc._id">
+                    <td>{{ doc.disciplina }}</td>
+                    <td>{{ doc.data }}</td>
+                    <td>{{ doc.aluno }}</td>
+                    <td :class="doc.presente ? 'presente' : 'ausente'">
+                        {{ doc.presente ? 'Presente' : 'Ausente' }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    registros: [],
+                    loading: true,
+                    erro: null
+                }
+            },
+            computed: {
+                registrosFiltrados() {
+                    // Filtra documentos de sistema do CouchDB
+                    return this.registros.filter(doc => !doc._id.startsWith('_design'));
+                }
+            },
+            async mounted() {
+                try {
+                    const response = await fetch('/admin');
+                    if (!response.ok) throw new Error('Falha ao buscar dados');
+                    this.registros = await response.json();
+                } catch (err) {
+                    this.erro = "Erro ao carregar dados do servidor.";
+                    console.error(err);
+                } finally {
+                    this.loading = false;
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
