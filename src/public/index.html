@@ -34,6 +34,32 @@
                 font-size: 0.9em;
                 color: #666;
             }
+            .area-chamada {
+                margin-top: 30px;
+                border-top: 2px solid #333;
+                padding-top: 20px;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+            th,
+            td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            .btn-presenca {
+                background-color: #eee;
+                border: 1px solid #999;
+            }
+            .btn-presenca.presente {
+                background-color: #cfc;
+            }
+            .btn-presenca.ausente {
+                background-color: #fcc;
+            }
         </style>
     </head>
 
@@ -45,20 +71,76 @@
                 <button @click="configura">Inicia Semestre</button>
             </div>
 
-            <div v-if="listaDisciplinasNomes.length > 0">
+            <div
+                v-if="listaDisciplinasNomes.length > 0 && !disciplinaSelecionada"
+            >
                 <h3>Minhas Disciplinas</h3>
                 <div
                     v-for="nome in listaDisciplinasNomes"
                     :key="nome"
                     class="disciplina-item"
                 >
-                    <span>{{ nome }}</span>
-                    <button @click="selecionarDisciplina(nome)">Chamada</button>
+                    <span>{{ nome.toUpperCase() }}</span>
+                    <button @click="selecionarDisciplina(nome)">
+                        Fazer Chamada
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interface de Chamada -->
+            <div v-if="disciplinaSelecionada" class="area-chamada">
+                <div style="display: flex; justify-content: space-between">
+                    <h3>Chamada: {{ disciplinaSelecionada.toUpperCase() }}</h3>
+                    <button @click="disciplinaSelecionada = null">
+                        Voltar
+                    </button>
+                </div>
+
+                <p>Data: {{ dataAtual }}</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Aluno</th>
+                            <th>Presença</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="aluno in alunos" :key="aluno.nome">
+                            <td>{{ aluno.nome }}</td>
+                            <td>
+                                <button
+                                    class="btn-presenca"
+                                    :class="{ 'presente': aluno.presente === true, 'ausente': aluno.presente === false }"
+                                    @click="marcarPresenca(aluno)"
+                                >
+                                    {{ aluno.presente === true ? 'Presente' :
+                                    (aluno.presente === false ? 'Ausente' :
+                                    'Marcar') }}
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div v-if="alunos.length > 0" style="margin-top: 15px">
+                    <button
+                        @click="salvarLocalmente"
+                        style="background-color: #333; color: white"
+                    >
+                        Salvar no Dispositivo
+                    </button>
+                    <span v-if="mensagem" style="margin-left: 10px"
+                        >{{ mensagem }}</span
+                    >
                 </div>
             </div>
 
             <div class="status-conexao">
-                Status: {{ isOnline ? 'Online' : 'Offline' }}
+                Status:
+                <span :style="{ color: isOnline ? 'green' : 'red' }"
+                    >{{ isOnline ? 'Online' : 'Offline' }}</span
+                >
             </div>
         </div>
 
@@ -72,13 +154,16 @@
                         listaDisciplinasNomes: [],
                         isOnline: navigator.onLine,
                         disciplinaSelecionada: null,
+                        alunos: [],
+                        dataAtual: new Date().toLocaleDateString("pt-BR"),
+                        mensagem: "",
                     };
                 },
                 async mounted() {
-                    window.addEventListener(
-                        "online",
-                        () => (this.isOnline = true),
-                    );
+                    window.addEventListener("online", () => {
+                        this.isOnline = true;
+                        this.sincronizar(); // Sincroniza ao voltar a rede
+                    });
                     window.addEventListener(
                         "offline",
                         () => (this.isOnline = false),
@@ -86,7 +171,6 @@
                     await this.qtdDisciplinas();
                 },
                 methods: {
-                    // --- Funções Originais Mantidas/Adaptadas ---
                     async login() {
                         const dados = await POST("/login", {
                             email: "fabio@ufsc.br",
@@ -99,12 +183,9 @@
                     async configura() {
                         let lista = await this.obtemListaDisciplinasServidor();
                         if (lista) {
-                            console.log("* Remove todos os dados");
                             let x = await this.obtemListaBDlocal();
                             await this.removeBDlocais(x);
                             await this.atualizaLista(lista);
-
-                            console.log("* Obtem dados do servidor");
                             for (let a = 0; a < lista.length; a++) {
                                 let dados = await this.dadosDisciplina(
                                     lista[a],
@@ -112,16 +193,96 @@
                                 await this.criaBancoDados(lista[a], dados);
                             }
                             await this.qtdDisciplinas();
-                        } else {
-                            console.log("Voce nao tem acesso ao sistema");
+                        }
+                    },
+
+                    async selecionarDisciplina(nome) {
+                        this.disciplinaSelecionada = nome;
+                        this.mensagem = "";
+                        try {
+                            let listaAlunos = await this.dadosDisciplina(nome);
+                            this.alunos = listaAlunos.map((a) => ({
+                                nome: a.aluno,
+                                presente: null,
+                            }));
+                        } catch (e) {
+                            console.error("Erro ao abrir disciplina:", e);
+                        }
+                    },
+
+                    marcarPresenca(aluno) {
+                        if (aluno.presente === null) aluno.presente = true;
+                        else if (aluno.presente === true)
+                            aluno.presente = false;
+                        else aluno.presente = true;
+                    },
+
+                    async salvarLocalmente() {
+                        const db = new PouchDB(this.disciplinaSelecionada);
+                        const docs = this.alunos.map((aluno) => ({
+                            _id: `${this.dataAtual}_${aluno.nome}`,
+                            aluno: aluno.nome,
+                            data: this.dataAtual,
+                            presente: aluno.presente,
+                            tipo: "chamada",
+                            sincronizado: false,
+                        }));
+
+                        try {
+                            for (const doc of docs) {
+                                try {
+                                    const existente = await db.get(doc._id);
+                                    doc._rev = existente._rev;
+                                } catch (e) {}
+                                await db.put(doc);
+                            }
+                            this.mensagem = "Salvo localmente!";
+                            setTimeout(() => (this.mensagem = ""), 3000);
+                        } catch (err) {
+                            this.mensagem = "Erro ao salvar.";
                         }
                     },
 
                     async sincronizar() {
-                        console.log("Sincronização global iniciada...");
-                        // Lógica de sincronização será detalhada no Commit 5
+                        console.log("Sincronizando dados pendentes...");
+                        this.mensagem = "Sincronizando...";
+
+                        for (const nome of this.listaDisciplinasNomes) {
+                            const db = new PouchDB(nome);
+                            try {
+                                const result = await db.allDocs({
+                                    include_docs: true,
+                                });
+                                const pendentes = result.rows
+                                    .map((r) => r.doc)
+                                    .filter(
+                                        (doc) =>
+                                            doc.tipo === "chamada" &&
+                                            doc.sincronizado === false,
+                                    );
+
+                                if (pendentes.length > 0) {
+                                    const resposta = await POST(
+                                        `/sync/${nome}`,
+                                        { docs: pendentes },
+                                    );
+                                    for (const doc of pendentes) {
+                                        doc.sincronizado = true;
+                                        await db.put(doc);
+                                    }
+                                }
+                            } catch (err) {
+                                console.error(
+                                    `Erro ao sincronizar ${nome}:`,
+                                    err,
+                                );
+                            }
+                        }
+                        this.mensagem = "Sincronização concluída!";
+                        setTimeout(() => (this.mensagem = ""), 3000);
                     },
 
+                    // --- Auxiliares ---
                     async obtemListaBDlocal() {
                         let result = await nomesDisciplinas.allDocs({
                             include_docs: true,
@@ -132,19 +293,14 @@
                             return [];
                         }
                     },
-
                     async removeBDlocais(lista) {
                         if (!lista) return;
                         for (let a = 0; a < lista.length; a++) {
                             try {
-                                let db = new PouchDB(lista[a]);
-                                await db.destroy();
-                            } catch (e) {
-                                console.log("Erro removendo:" + lista[a]);
-                            }
+                                await new PouchDB(lista[a]).destroy();
+                            } catch (e) {}
                         }
                     },
-
                     async atualizaLista(lista) {
                         let doc = { _id: "0", lista: lista };
                         try {
@@ -154,30 +310,18 @@
                             doc._rev = existente._rev;
                             await nomesDisciplinas.put(doc);
                         } catch (err) {
-                            if (err.status === 404)
-                                await nomesDisciplinas.put(doc);
-                            else console.error(err);
+                            await nomesDisciplinas.put(doc);
                         }
                     },
-
                     async dadosDisciplina(nome) {
                         return await GET("/disciplinas/" + nome);
                     },
-
                     async criaBancoDados(bd, dados) {
-                        // Inicializa o banco local PouchDB para a disciplina
                         new PouchDB(bd);
                     },
-
                     async obtemListaDisciplinasServidor() {
-                        try {
-                            return await GET("/disciplinas");
-                        } catch (e) {
-                            console.log("Erro ao buscar lista: " + e);
-                            return null;
-                        }
+                        return await GET("/disciplinas");
                     },
-
                     async qtdDisciplinas() {
                         try {
                             let resultado = await nomesDisciplinas.allDocs({
@@ -185,17 +329,9 @@
                             });
                             this.listaDisciplinasNomes =
                                 resultado.rows[0].doc.lista;
-                            console.log(
-                                "Disciplinas locais:",
-                                this.listaDisciplinasNomes.length,
-                            );
                         } catch (e) {
                             this.listaDisciplinasNomes = [];
                         }
-                    },
-
-                    selecionarDisciplina(nome) {
-                        alert("Abrindo chamada de: " + nome);
                     },
                 },
             }).mount("#app");
