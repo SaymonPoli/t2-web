@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>PouchDB Sync</title>
+        <script type="text/javascript" src="rede.js"></script>
+
+        <script src="https://cdn.jsdelivr.net/npm/pouchdb/dist/pouchdb.min.js"></script>
+    </head>
+
+    <body>
+        <button onclick="login()">Login</button>
+
+        <button onclick="sincronizar()">Sincronizar</button>
+
+        <button onclick="configura()">Inicia Semestre</button>
+
+        <script>
+            const nomesDisciplinas = new PouchDB("lista");
+            var listaDisciplinas = [];
+
+            async function obtemListaBDlocal() {
+                // Pega a lista de todos os bancos de dados que existem localmente
+                let result = await nomesDisciplinas.allDocs({
+                    include_docs: true,
+                });
+                let lista;
+                try {
+                    lista = result.rows[0].doc.lista;
+                } catch (e) {
+                    lista = [];
+                }
+                return lista;
+            }
+            async function removeBDlocais(lista) {
+                if (!lista) return;
+                for (let a = 0; a < lista.length; a++) {
+                    try {
+                        let db = new PouchDB(lista[a]);
+                        await db.destroy();
+                    } catch (e) {
+                        console.log("Erro removendo:" + lista[a]);
+                    }
+                }
+            }
+
+            async function dadosDisciplina(nome) {
+                let dados = await GET("/disciplinas/" + nome);
+                return dados;
+            }
+            async function qtdDisciplinas() {
+                try {
+                    let resultado = await nomesDisciplinas.allDocs({
+                        include_docs: true,
+                    });
+
+                    let l = resultado.rows[0].doc.lista;
+                    console.log(
+                        "Quantidade de disciplinas no banco de dados local:" +
+                            l.length,
+                    );
+                    for (let a = 0; a < l.length; a++) console.log(l[a]);
+                } catch (e) {}
+            }
+
+            async function atualizaLista(lista) {
+                let doc = { _id: "0", lista: lista };
+                try {
+                    // tenta buscar documento existente
+                    const existente = await nomesDisciplinas.get(doc._id);
+
+                    // mantém _rev atual
+                    doc._rev = existente._rev;
+
+                    // atualiza
+                    const resposta = await nomesDisciplinas.put(doc);
+                } catch (err) {
+                    // documento não existe
+                    if (err.status === 404) {
+                        const resposta = await nomesDisciplinas.put(doc);
+
+                        console.log("Documento criado", resposta);
+                    } else {
+                        console.error(err);
+                    }
+                }
+            }
+            async function criaBancoDados(bd, dados) {
+                listaDisciplinas.push(new PouchDB(bd));
+            }
+            async function obtemListaDisciplinasServidor() {
+                let lista = [];
+                try {
+                    lista = await GET("/disciplinas");
+                } catch (e) {
+                    console.log("eeeeeeeeeee" + e);
+                }
+                return lista;
+            }
+            async function configura() {
+                // Pega a lista de disciplinas atuais
+                let lista;
+                lista = await obtemListaDisciplinasServidor();
+                if (lista) {
+                    // Se consegue se logar e pegar a lista, remove os bancos de dados atuais e atualiza tudo
+                    //
+                    //
+                    //
+                    // Remove todos os bancos de dados e remove a lista de disciplinas
+                    //
+                    console.log("* Remove todos os dados");
+                    let x = await obtemListaBDlocal();
+                    removeBDlocais(x);
+                    atualizaLista(lista);
+                    console.log("* Obtem dados do servidor");
+
+                    console.log("Lista recebida " + lista);
+                    for (let a = 0; a < lista.length; a++) {
+                        let dados = await dadosDisciplina(lista[0]);
+                        criaBancoDados(lista[a], dados);
+                    }
+
+                    qtdDisciplinas();
+                } else {
+                    console.log("Voce nao tem acesso ao sistema");
+                }
+            }
+            // LOGIN
+            async function login() {
+                const dados = await POST("/login", {
+                    email: "fabio@ufsc.br",
+                    senha: "123",
+                });
+                token = dados.token;
+                console.log("TOKEN:", token);
+            }
+
+            // sincronização
+            async function sincronizar() {
+                const resposta = await POST("/sync/dec0020", dados);
+                console.log(resposta);
+            }
+            qtdDisciplinas();
+        </script>
+    </body>
+</html>
