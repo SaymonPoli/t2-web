@@ -148,6 +148,31 @@ app.get("/disciplinas/:disciplina", autenticar, (req, res) => {
   res.send(x);
 });
 
+// Interface Administrativa (Instituição)
+app.get("/admin", async (req, res) => {
+  try {
+    const list = await nano.db.list();
+    // Filtramos apenas os bancos que seguem o padrão de disciplinas (ex: decXXXX)
+    const dbNames = list.filter((name) => name.startsWith("dec"));
+    let allPresences = [];
+
+    for (const dbName of dbNames) {
+      const db = nano.use(dbName);
+      const result = await db.list({ include_docs: true });
+      const docs = result.rows.map((row) => ({
+        ...row.doc,
+        disciplina: dbName,
+      }));
+      allPresences = allPresences.concat(docs);
+    }
+
+    res.json(allPresences);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Erro ao carregar dados administrativos");
+  }
+});
+
 // professor sincroniza uma disciplina
 app.post("/sync/:disciplina", autenticar, async (req, res) => {
   const disciplina = req.params.disciplina; // quem é o professor
