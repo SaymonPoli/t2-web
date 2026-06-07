@@ -9,6 +9,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname + "/public"));
 
+// Servir bibliotecas do node_modules para o frontend
+app.use("/scripts/vue", express.static(__dirname + "/node_modules/vue/dist/"));
+app.use(
+  "/scripts/pouchdb",
+  express.static(__dirname + "/node_modules/pouchdb/dist/"),
+);
+
 const SECRET = "segredo";
 
 // conexão CouchDB
