@@ -2,7 +2,7 @@
 <html>
     <head>
         <meta charset="UTF-8" />
-        <title>PouchDB Sync - Professor</title>
+        <title>Sistema de Presença - Professor</title>
         <script type="text/javascript" src="rede.js"></script>
         <script src="/scripts/pouchdb/pouchdb.min.js"></script>
         <script src="/scripts/vue/vue.global.js"></script>
@@ -10,137 +10,279 @@
         <style>
             body {
                 font-family: sans-serif;
-                margin: 20px;
+                margin: 0;
+                background-color: #f0f2f5;
+                display: flex;
+                justify-content: center;
+                padding-top: 50px;
             }
-            .area-botoes {
-                margin-bottom: 20px;
+            #app {
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                width: 100%;
+                max-width: 600px;
             }
-            button {
-                margin-right: 10px;
-                padding: 5px 10px;
+
+            /* Tela de Login */
+            .login-container {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
+            .login-container input {
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 16px;
+            }
+            .login-container button {
+                padding: 12px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
                 cursor: pointer;
+                font-size: 16px;
             }
-            .disciplina-item {
-                border: 1px solid #ccc;
-                padding: 10px;
-                margin-top: 10px;
-                max-width: 400px;
+            .login-container button:hover {
+                background-color: #0056b3;
+            }
+            .erro {
+                color: red;
+                font-size: 14px;
+            }
+
+            /* Dashboard */
+            .header-dash {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                border-bottom: 2px solid #eee;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+            }
+            .btn-logout {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                padding: 8px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+
+            .area-botoes {
+                margin-bottom: 20px;
+            }
+            .area-botoes button {
+                margin-right: 10px;
+                padding: 8px 12px;
+                cursor: pointer;
+                background: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+
+            .disciplina-item {
+                border: 1px solid #eee;
+                padding: 15px;
+                margin-top: 10px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: #f8f9fa;
             }
             .status-conexao {
-                margin-top: 20px;
-                font-size: 0.9em;
-                color: #666;
-            }
-            .area-chamada {
                 margin-top: 30px;
-                border-top: 2px solid #333;
-                padding-top: 20px;
+                font-size: 0.85em;
+                color: #777;
+                border-top: 1px solid #eee;
+                padding-top: 10px;
             }
+
+            /* Tabela Chamada */
             table {
                 width: 100%;
                 border-collapse: collapse;
-                margin-top: 10px;
+                margin-top: 15px;
             }
             th,
             td {
                 border: 1px solid #ddd;
-                padding: 8px;
+                padding: 10px;
                 text-align: left;
             }
             .btn-presenca {
-                background-color: #eee;
-                border: 1px solid #999;
+                padding: 5px 10px;
+                cursor: pointer;
+                border: 1px solid #ccc;
+                border-radius: 3px;
             }
-            .btn-presenca.presente {
-                background-color: #cfc;
+            .presente {
+                background-color: #d4edda;
+                color: #155724;
             }
-            .btn-presenca.ausente {
-                background-color: #fcc;
+            .ausente {
+                background-color: #f8d7da;
+                color: #721c24;
             }
         </style>
     </head>
 
     <body>
         <div id="app">
-            <div class="area-botoes">
-                <button @click="login">Login</button>
-                <button @click="sincronizar">Sincronizar</button>
-                <button @click="configura">Inicia Semestre</button>
+            <!-- TELA DE LOGIN -->
+            <div v-if="!autenticado" class="login-container">
+                <h2 style="text-align: center; margin-top: 0">
+                    Login do Professor
+                </h2>
+                <input
+                    v-model="credenciais.email"
+                    type="email"
+                    placeholder="E-mail profissional"
+                />
+                <input
+                    v-model="credenciais.senha"
+                    type="password"
+                    placeholder="Senha"
+                />
+                <button @click="efetuarLogin">Entrar no Sistema</button>
+                <p v-if="mensagemErro" class="erro">{{ mensagemErro }}</p>
             </div>
 
-            <div
-                v-if="listaDisciplinasNomes.length > 0 && !disciplinaSelecionada"
-            >
-                <h3>Minhas Disciplinas</h3>
-                <div
-                    v-for="nome in listaDisciplinasNomes"
-                    :key="nome"
-                    class="disciplina-item"
-                >
-                    <span>{{ nome.toUpperCase() }}</span>
-                    <button @click="selecionarDisciplina(nome)">
-                        Fazer Chamada
-                    </button>
-                </div>
-            </div>
-
-            <!-- Interface de Chamada -->
-            <div v-if="disciplinaSelecionada" class="area-chamada">
-                <div style="display: flex; justify-content: space-between">
-                    <h3>Chamada: {{ disciplinaSelecionada.toUpperCase() }}</h3>
-                    <button @click="disciplinaSelecionada = null">
-                        Voltar
-                    </button>
+            <!-- TELA PRINCIPAL (DASHBOARD) -->
+            <div v-else>
+                <div class="header-dash">
+                    <h2 style="margin: 0">Painel do Professor</h2>
+                    <button class="btn-logout" @click="logout">Sair</button>
                 </div>
 
-                <p>Data: {{ dataAtual }}</p>
+                <div v-if="!disciplinaSelecionada">
+                    <div class="area-botoes">
+                        <button @click="sincronizar">Sincronizar Agora</button>
+                        <button @click="configura" style="background: #28a745">
+                            Iniciar Semestre
+                        </button>
+                    </div>
 
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Aluno</th>
-                            <th>Presença</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="aluno in alunos" :key="aluno.nome">
-                            <td>{{ aluno.nome }}</td>
-                            <td>
-                                <button
-                                    class="btn-presenca"
-                                    :class="{ 'presente': aluno.presente === true, 'ausente': aluno.presente === false }"
-                                    @click="marcarPresenca(aluno)"
-                                >
-                                    {{ aluno.presente === true ? 'Presente' :
-                                    (aluno.presente === false ? 'Ausente' :
-                                    'Marcar') }}
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div v-if="alunos.length > 0" style="margin-top: 15px">
-                    <button
-                        @click="salvarLocalmente"
-                        style="background-color: #333; color: white"
+                    <h3>Minhas Disciplinas</h3>
+                    <div
+                        v-for="nome in listaDisciplinasNomes"
+                        :key="nome"
+                        class="disciplina-item"
                     >
-                        Salvar no Dispositivo
-                    </button>
-                    <span v-if="mensagem" style="margin-left: 10px"
-                        >{{ mensagem }}</span
+                        <span style="font-weight: bold"
+                            >{{ nome.toUpperCase() }}</span
+                        >
+                        <button
+                            @click="selecionarDisciplina(nome)"
+                            style="
+                                background: #007bff;
+                                color: white;
+                                border: none;
+                                padding: 5px 10px;
+                                border-radius: 3px;
+                                cursor: pointer;
+                            "
+                        >
+                            Fazer Chamada
+                        </button>
+                    </div>
+                    <p
+                        v-if="listaDisciplinasNomes.length === 0"
+                        style="color: #666"
+                    >
+                        Nenhuma disciplina carregada. Clique em "Iniciar
+                        Semestre".
+                    </p>
+                </div>
+
+                <!-- Interface de Chamada -->
+                <div v-else class="area-chamada">
+                    <div
+                        style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        "
+                    >
+                        <h3>
+                            Chamada: {{ disciplinaSelecionada.toUpperCase() }}
+                        </h3>
+                        <button
+                            @click="disciplinaSelecionada = null"
+                            style="padding: 5px 10px"
+                        >
+                            Voltar
+                        </button>
+                    </div>
+
+                    <p><strong>Data:</strong> {{ dataAtual }}</p>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Aluno</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="aluno in alunos" :key="aluno.nome">
+                                <td>{{ aluno.nome }}</td>
+                                <td>
+                                    <button
+                                        class="btn-presenca"
+                                        :class="{ 'presente': aluno.presente === true, 'ausente': aluno.presente === false }"
+                                        @click="marcarPresenca(aluno)"
+                                    >
+                                        {{ aluno.presente === true ? 'Presente'
+                                        : (aluno.presente === false ? 'Ausente'
+                                        : 'Marcar') }}
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div v-if="alunos.length > 0" style="margin-top: 20px">
+                        <button
+                            @click="salvarLocalmente"
+                            style="
+                                background-color: #333;
+                                color: white;
+                                padding: 10px 20px;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: pointer;
+                            "
+                        >
+                            Salvar no Dispositivo
+                        </button>
+                        <span
+                            v-if="mensagemFeedback"
+                            style="
+                                margin-left: 15px;
+                                font-weight: bold;
+                                color: #28a745;
+                            "
+                            >{{ mensagemFeedback }}</span
+                        >
+                    </div>
+                </div>
+
+                <div class="status-conexao">
+                    Rede:
+                    <span
+                        :style="{ color: isOnline ? 'green' : 'red', fontWeight: 'bold' }"
+                    >
+                        {{ isOnline ? 'ONLINE' : 'OFFLINE' }}
+                    </span>
+                    <span v-if="!isOnline" style="margin-left: 10px"
+                        >(As alterações serão salvas localmente)</span
                     >
                 </div>
-            </div>
-
-            <div class="status-conexao">
-                Status:
-                <span :style="{ color: isOnline ? 'green' : 'red' }"
-                    >{{ isOnline ? 'Online' : 'Offline' }}</span
-                >
             </div>
         </div>
 
@@ -151,35 +293,62 @@
             createApp({
                 data() {
                     return {
+                        autenticado: !!localStorage.getItem("token"),
+                        credenciais: { email: "fabio@ufsc.br", senha: "123" },
+                        mensagemErro: "",
+
                         listaDisciplinasNomes: [],
                         isOnline: navigator.onLine,
                         disciplinaSelecionada: null,
                         alunos: [],
                         dataAtual: new Date().toLocaleDateString("pt-BR"),
-                        mensagem: "",
+                        mensagemFeedback: "",
                     };
                 },
                 async mounted() {
+                    if (this.autenticado) {
+                        token = localStorage.getItem("token");
+                        await this.qtdDisciplinas();
+                    }
+
                     window.addEventListener("online", () => {
                         this.isOnline = true;
-                        this.sincronizar(); // Sincroniza ao voltar a rede
+                        if (this.autenticado) this.sincronizar();
                     });
                     window.addEventListener(
                         "offline",
                         () => (this.isOnline = false),
                     );
-                    await this.qtdDisciplinas();
                 },
                 methods: {
-                    async login() {
-                        const dados = await POST("/login", {
-                            email: "fabio@ufsc.br",
-                            senha: "123",
-                        });
-                        token = dados.token;
-                        console.log("TOKEN:", token);
+                    async efetuarLogin() {
+                        this.mensagemErro = "";
+                        try {
+                            const dados = await POST(
+                                "/login",
+                                this.credenciais,
+                            );
+                            if (dados && dados.token) {
+                                token = dados.token;
+                                localStorage.setItem("token", token);
+                                this.autenticado = true;
+                                await this.qtdDisciplinas();
+                            } else {
+                                this.mensagemErro =
+                                    "E-mail ou senha incorretos.";
+                            }
+                        } catch (e) {
+                            this.mensagemErro =
+                                "Erro ao conectar com o servidor.";
+                        }
                     },
-
+                    logout() {
+                        localStorage.removeItem("token");
+                        token = "";
+                        this.autenticado = false;
+                        this.disciplinaSelecionada = null;
+                        this.listaDisciplinasNomes = [];
+                    },
                     async configura() {
                         let lista = await this.obtemListaDisciplinasServidor();
                         if (lista) {
@@ -195,10 +364,9 @@
                             await this.qtdDisciplinas();
                         }
                     },
-
                     async selecionarDisciplina(nome) {
                         this.disciplinaSelecionada = nome;
-                        this.mensagem = "";
+                        this.mensagemFeedback = "";
                         try {
                             let listaAlunos = await this.dadosDisciplina(nome);
                             this.alunos = listaAlunos.map((a) => ({
@@ -206,17 +374,15 @@
                                 presente: null,
                             }));
                         } catch (e) {
-                            console.error("Erro ao abrir disciplina:", e);
+                            console.error(e);
                         }
                     },
-
                     marcarPresenca(aluno) {
                         if (aluno.presente === null) aluno.presente = true;
                         else if (aluno.presente === true)
                             aluno.presente = false;
                         else aluno.presente = true;
                     },
-
                     async salvarLocalmente() {
                         const db = new PouchDB(this.disciplinaSelecionada);
                         const docs = this.alunos.map((aluno) => ({
@@ -227,7 +393,6 @@
                             tipo: "chamada",
                             sincronizado: false,
                         }));
-
                         try {
                             for (const doc of docs) {
                                 try {
@@ -236,17 +401,18 @@
                                 } catch (e) {}
                                 await db.put(doc);
                             }
-                            this.mensagem = "Salvo localmente!";
-                            setTimeout(() => (this.mensagem = ""), 3000);
+                            this.mensagemFeedback = "Salvo com sucesso!";
+                            setTimeout(
+                                () => (this.mensagemFeedback = ""),
+                                3000,
+                            );
                         } catch (err) {
-                            this.mensagem = "Erro ao salvar.";
+                            this.mensagemFeedback =
+                                "Erro ao salvar localmente.";
                         }
                     },
-
                     async sincronizar() {
-                        console.log("Sincronizando dados pendentes...");
-                        this.mensagem = "Sincronizando...";
-
+                        if (!this.isOnline) return;
                         for (const nome of this.listaDisciplinasNomes) {
                             const db = new PouchDB(nome);
                             try {
@@ -260,29 +426,21 @@
                                             doc.tipo === "chamada" &&
                                             doc.sincronizado === false,
                                     );
-
                                 if (pendentes.length > 0) {
-                                    const resposta = await POST(
-                                        `/sync/${nome}`,
-                                        { docs: pendentes },
-                                    );
+                                    await POST(`/sync/${nome}`, {
+                                        docs: pendentes,
+                                    });
                                     for (const doc of pendentes) {
                                         doc.sincronizado = true;
                                         await db.put(doc);
                                     }
                                 }
                             } catch (err) {
-                                console.error(
-                                    `Erro ao sincronizar ${nome}:`,
-                                    err,
-                                );
+                                console.error(err);
                             }
                         }
-                        this.mensagem = "Sincronização concluída!";
-                        setTimeout(() => (this.mensagem = ""), 3000);
                     },
-
-                    // --- Auxiliares ---
+                    // --- Auxiliares PouchDB ---
                     async obtemListaBDlocal() {
                         let result = await nomesDisciplinas.allDocs({
                             include_docs: true,
