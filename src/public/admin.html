@@ -93,10 +93,11 @@
                 },
                 computed: {
                     registrosFiltrados() {
-                        // Filtra documentos de sistema do CouchDB
-                        return this.registros.filter(
-                            (doc) => !doc._id.startsWith("_design"),
-                        );
+                        // Mostra tudo que não seja documento de configuração do CouchDB
+                        return this.registros.filter(doc => !doc._id.startsWith('_design'));
+                    }
+                },
+
                     },
                 },
                 async mounted() {

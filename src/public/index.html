@@ -427,8 +427,15 @@
                                             doc.sincronizado === false,
                                     );
                                 if (pendentes.length > 0) {
+                                    const docsParaEnviar = pendentes.map(
+                                        (d) => {
+                                            const { _rev, ...limpo } = d;
+                                            return limpo;
+                                        },
+                                    );
+
                                     await POST(`/sync/${nome}`, {
-                                        docs: pendentes,
+                                        docs: docsParaEnviar,
                                     });
                                     for (const doc of pendentes) {
                                         doc.sincronizado = true;
