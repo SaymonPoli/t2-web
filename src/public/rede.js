@@ -1,8 +1,9 @@
 var token = "";
+const BASE_URL = "http://localhost:7000";
 
 // ------------------------ POST ------------------------------------
 async function POST(rota, valor) {
-  let resposta = await fetch(rota, {
+  let resposta = await fetch(BASE_URL + rota, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -19,7 +20,7 @@ async function POST(rota, valor) {
 async function GET(rota) {
   let resposta;
   try {
-    resposta = await fetch(rota, {
+    resposta = await fetch(BASE_URL + rota, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

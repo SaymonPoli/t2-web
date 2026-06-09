@@ -279,9 +279,26 @@
                     >
                         {{ isOnline ? 'ONLINE' : 'OFFLINE' }}
                     </span>
-                    <span v-if="!isOnline" style="margin-left: 10px"
-                        >(As alterações serão salvas localmente)</span
+                    <span
+                        v-if="sincronizacaoPendente"
+                        style="
+                            margin-left: 15px;
+                            color: #e67e22;
+                            font-weight: bold;
+                        "
                     >
+                        Sincronização Pendente
+                    </span>
+                    <span
+                        v-else-if="autenticado"
+                        style="
+                            margin-left: 15px;
+                            color: #2ecc71;
+                            font-weight: bold;
+                        "
+                    >
+                        Sincronizado
+                    </span>
                 </div>
             </div>
         </div>
@@ -303,17 +320,25 @@
                         alunos: [],
                         dataAtual: new Date().toLocaleDateString("pt-BR"),
                         mensagemFeedback: "",
+                        sincronizacaoPendente: false,
+                        syncIntervalId: null,
                     };
                 },
                 async mounted() {
                     if (this.autenticado) {
                         token = localStorage.getItem("token");
                         await this.qtdDisciplinas();
+                        // Verifica se há algo pendente ao iniciar
+                        await this.verificarPendencias();
                     }
 
                     window.addEventListener("online", () => {
                         this.isOnline = true;
-                        if (this.autenticado) this.sincronizar();
+                        if (this.autenticado) {
+                            this.sincronizar().then((sucesso) => {
+                                if (!sucesso) this.iniciarTimerSincronizacao();
+                            });
+                        }
                     });
                     window.addEventListener(
                         "offline",
@@ -333,6 +358,7 @@
                                 localStorage.setItem("token", token);
                                 this.autenticado = true;
                                 await this.qtdDisciplinas();
+                                await this.verificarPendencias();
                             } else {
                                 this.mensagemErro =
                                     "E-mail ou senha incorretos.";
@@ -362,6 +388,7 @@
                                 await this.criaBancoDados(lista[a], dados);
                             }
                             await this.qtdDisciplinas();
+                            await this.verificarPendencias();
                         }
                     },
                     async selecionarDisciplina(nome) {
@@ -401,7 +428,15 @@
                                 } catch (e) {}
                                 await db.put(doc);
                             }
-                            this.mensagemFeedback = "Salvo com sucesso!";
+                            this.mensagemFeedback = "Salvo localmente!";
+                            this.sincronizacaoPendente = true;
+
+                            // Tenta sincronizar imediatamente
+                            const sucesso = await this.sincronizar();
+                            if (!sucesso) {
+                                this.iniciarTimerSincronizacao();
+                            }
+
                             setTimeout(
                                 () => (this.mensagemFeedback = ""),
                                 3000,
@@ -412,7 +447,9 @@
                         }
                     },
                     async sincronizar() {
-                        if (!this.isOnline) return;
+                        if (!this.isOnline) return false;
+                        let tudoSincronizado = true;
+
                         for (const nome of this.listaDisciplinasNomes) {
                             const db = new PouchDB(nome);
                             try {
@@ -426,6 +463,7 @@
                                             doc.tipo === "chamada" &&
                                             doc.sincronizado === false,
                                     );
+
                                 if (pendentes.length > 0) {
                                     const docsParaEnviar = pendentes.map(
                                         (d) => {
@@ -443,9 +481,54 @@
                                     }
                                 }
                             } catch (err) {
-                                console.error(err);
+                                console.error(
+                                    `Erro ao sincronizar ${nome}:`,
+                                    err,
+                                );
+                                tudoSincronizado = false;
                             }
                         }
+
+                        if (tudoSincronizado) {
+                            this.sincronizacaoPendente = false;
+                            if (this.syncIntervalId) {
+                                clearInterval(this.syncIntervalId);
+                                this.syncIntervalId = null;
+                            }
+                            return true;
+                        }
+                        return false;
+                    },
+                    iniciarTimerSincronizacao() {
+                        if (this.syncIntervalId) return;
+                        console.log(
+                            "Iniciando timer de sincronização (20s)...",
+                        );
+                        this.syncIntervalId = setInterval(async () => {
+                            console.log(
+                                "Tentativa automática de sincronização...",
+                            );
+                            await this.sincronizar();
+                        }, 20000);
+                    },
+                    async verificarPendencias() {
+                        for (const nome of this.listaDisciplinasNomes) {
+                            const db = new PouchDB(nome);
+                            const result = await db.allDocs({
+                                include_docs: true,
+                            });
+                            const temPendencia = result.rows.some(
+                                (r) =>
+                                    r.doc.tipo === "chamada" &&
+                                    !r.doc.sincronizado,
+                            );
+                            if (temPendencia) {
+                                this.sincronizacaoPendente = true;
+                                this.iniciarTimerSincronizacao();
+                                return;
+                            }
+                        }
+                        this.sincronizacaoPendente = false;
                     },
                     // --- Auxiliares PouchDB ---
                     async obtemListaBDlocal() {
