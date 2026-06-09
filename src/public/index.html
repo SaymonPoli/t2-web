@@ -2,283 +2,40 @@
 <html>
     <head>
         <meta charset="UTF-8" />
-        <title>Sistema de Presença - Professor</title>
-        <script type="text/javascript" src="rede.js"></script>
+        <title>Sistema de Presença</title>
+        <script src="rede.js"></script>
         <script src="/scripts/pouchdb/pouchdb.min.js"></script>
         <script src="/scripts/vue/vue.global.js"></script>
-
-        <style>
-            body {
-                font-family: sans-serif;
-                margin: 0;
-                background-color: #f0f2f5;
-                display: flex;
-                justify-content: center;
-                padding-top: 50px;
-            }
-            #app {
-                background: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                width: 100%;
-                max-width: 600px;
-            }
-
-            /* Tela de Login */
-            .login-container {
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-            }
-            .login-container input {
-                padding: 12px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 16px;
-            }
-            .login-container button {
-                padding: 12px;
-                background-color: #007bff;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 16px;
-            }
-            .login-container button:hover {
-                background-color: #0056b3;
-            }
-            .erro {
-                color: red;
-                font-size: 14px;
-            }
-
-            /* Dashboard */
-            .header-dash {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 2px solid #eee;
-                padding-bottom: 10px;
-                margin-bottom: 20px;
-            }
-            .btn-logout {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 4px;
-                cursor: pointer;
-            }
-
-            .area-botoes {
-                margin-bottom: 20px;
-            }
-            .area-botoes button {
-                margin-right: 10px;
-                padding: 8px 12px;
-                cursor: pointer;
-                background: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 4px;
-            }
-
-            .disciplina-item {
-                border: 1px solid #eee;
-                padding: 15px;
-                margin-top: 10px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                background: #f8f9fa;
-            }
-            .status-conexao {
-                margin-top: 30px;
-                font-size: 0.85em;
-                color: #777;
-                border-top: 1px solid #eee;
-                padding-top: 10px;
-            }
-
-            /* Tabela Chamada */
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            th,
-            td {
-                border: 1px solid #ddd;
-                padding: 10px;
-                text-align: left;
-            }
-            .btn-presenca {
-                padding: 5px 10px;
-                cursor: pointer;
-                border: 1px solid #ccc;
-                border-radius: 3px;
-            }
-            .presente {
-                background-color: #d4edda;
-                color: #155724;
-            }
-            .ausente {
-                background-color: #f8d7da;
-                color: #721c24;
-            }
-        </style>
     </head>
-
     <body>
         <div id="app">
-            <!-- TELA DE LOGIN -->
-            <div v-if="!autenticado" class="login-container">
-                <h2 style="text-align: center; margin-top: 0">
-                    Login do Professor
-                </h2>
-                <input
-                    v-model="credenciais.email"
-                    type="email"
-                    placeholder="E-mail profissional"
-                />
-                <input
-                    v-model="credenciais.senha"
-                    type="password"
-                    placeholder="Senha"
-                />
-                <button @click="efetuarLogin">Entrar no Sistema</button>
-                <p v-if="mensagemErro" class="erro">{{ mensagemErro }}</p>
-            </div>
-
-            <!-- TELA PRINCIPAL (DASHBOARD) -->
+            <login v-if="!autenticado" @login-sucesso="onLogin"></login>
             <div v-else>
                 <div class="header-dash">
                     <h2 style="margin: 0">Painel do Professor</h2>
                     <button class="btn-logout" @click="logout">Sair</button>
                 </div>
-
-                <div v-if="!disciplinaSelecionada">
-                    <div class="area-botoes">
-                        <button @click="sincronizar">Sincronizar Agora</button>
-                        <button @click="configura" style="background: #28a745">
-                            Iniciar Semestre
-                        </button>
-                    </div>
-
-                    <h3>Minhas Disciplinas</h3>
-                    <div
-                        v-for="nome in listaDisciplinasNomes"
-                        :key="nome"
-                        class="disciplina-item"
-                    >
-                        <span style="font-weight: bold"
-                            >{{ nome.toUpperCase() }}</span
-                        >
-                        <button
-                            @click="selecionarDisciplina(nome)"
-                            style="
-                                background: #007bff;
-                                color: white;
-                                border: none;
-                                padding: 5px 10px;
-                                border-radius: 3px;
-                                cursor: pointer;
-                            "
-                        >
-                            Fazer Chamada
-                        </button>
-                    </div>
-                    <p
-                        v-if="listaDisciplinasNomes.length === 0"
-                        style="color: #666"
-                    >
-                        Nenhuma disciplina carregada. Clique em "Iniciar
-                        Semestre".
-                    </p>
-                </div>
-
-                <!-- Interface de Chamada -->
-                <div v-else class="area-chamada">
-                    <div
-                        style="
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: center;
-                        "
-                    >
-                        <h3>
-                            Chamada: {{ disciplinaSelecionada.toUpperCase() }}
-                        </h3>
-                        <button
-                            @click="disciplinaSelecionada = null"
-                            style="padding: 5px 10px"
-                        >
-                            Voltar
-                        </button>
-                    </div>
-
-                    <p><strong>Data:</strong> {{ dataAtual }}</p>
-
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Aluno</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="aluno in alunos" :key="aluno.nome">
-                                <td>{{ aluno.nome }}</td>
-                                <td>
-                                    <button
-                                        class="btn-presenca"
-                                        :class="{ 'presente': aluno.presente === true, 'ausente': aluno.presente === false }"
-                                        @click="marcarPresenca(aluno)"
-                                    >
-                                        {{ aluno.presente === true ? 'Presente'
-                                        : (aluno.presente === false ? 'Ausente'
-                                        : 'Marcar') }}
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div v-if="alunos.length > 0" style="margin-top: 20px">
-                        <button
-                            @click="salvarLocalmente"
-                            style="
-                                background-color: #333;
-                                color: white;
-                                padding: 10px 20px;
-                                border: none;
-                                border-radius: 4px;
-                                cursor: pointer;
-                            "
-                        >
-                            Salvar no Dispositivo
-                        </button>
-                        <span
-                            v-if="mensagemFeedback"
-                            style="
-                                margin-left: 15px;
-                                font-weight: bold;
-                                color: #28a745;
-                            "
-                            >{{ mensagemFeedback }}</span
-                        >
-                    </div>
-                </div>
-
+                <dashboard
+                    v-if="!disciplinaSelecionada"
+                    :disciplinas="listaDisciplinasNomes"
+                    @selecionar="disciplinaSelecionada = $event"
+                    @configurar="configurar"
+                    @sincronizar="sincronizar"
+                >
+                </dashboard>
+                <chamada
+                    v-else
+                    :disciplina="disciplinaSelecionada"
+                    @voltar="disciplinaSelecionada = null"
+                    @salvo="onSalvo"
+                >
+                </chamada>
                 <div class="status-conexao">
                     Rede:
                     <span
                         :style="{ color: isOnline ? 'green' : 'red', fontWeight: 'bold' }"
+                        >{{ isOnline ? 'ONLINE' : 'OFFLINE' }}</span
                     >
-                        {{ isOnline ? 'ONLINE' : 'OFFLINE' }}
-                    </span>
                     <span
                         v-if="sincronizacaoPendente"
                         style="
@@ -286,303 +43,23 @@
                             color: #e67e22;
                             font-weight: bold;
                         "
+                        >⚠️ Pendente</span
                     >
-                        Sincronização Pendente
-                    </span>
                     <span
-                        v-else-if="autenticado"
+                        v-else
                         style="
                             margin-left: 15px;
                             color: #2ecc71;
                             font-weight: bold;
                         "
+                        >✅ Sincronizado</span
                     >
-                        Sincronizado
-                    </span>
                 </div>
             </div>
         </div>
-
-        <script>
-            const { createApp } = Vue;
-            const nomesDisciplinas = new PouchDB("lista");
-
-            createApp({
-                data() {
-                    return {
-                        autenticado: !!localStorage.getItem("token"),
-                        credenciais: { email: "", senha: "" },
-                        mensagemErro: "",
-
-                        listaDisciplinasNomes: [],
-                        isOnline: navigator.onLine,
-                        disciplinaSelecionada: null,
-                        alunos: [],
-                        dataAtual: new Date().toLocaleDateString("pt-BR"),
-                        mensagemFeedback: "",
-                        sincronizacaoPendente: false,
-                        syncIntervalId: null,
-                    };
-                },
-                async mounted() {
-                    if (this.autenticado) {
-                        token = localStorage.getItem("token");
-                        await this.qtdDisciplinas();
-                        // Verifica se há algo pendente ao iniciar
-                        await this.verificarPendencias();
-                    }
-
-                    window.addEventListener("online", () => {
-                        this.isOnline = true;
-                        if (this.autenticado) {
-                            this.sincronizar().then((sucesso) => {
-                                if (!sucesso) this.iniciarTimerSincronizacao();
-                            });
-                        }
-                    });
-                    window.addEventListener(
-                        "offline",
-                        () => (this.isOnline = false),
-                    );
-                },
-                methods: {
-                    async efetuarLogin() {
-                        this.mensagemErro = "";
-                        try {
-                            const dados = await POST(
-                                "/login",
-                                this.credenciais,
-                            );
-                            if (dados && dados.token) {
-                                token = dados.token;
-                                localStorage.setItem("token", token);
-                                this.autenticado = true;
-                                await this.qtdDisciplinas();
-                                await this.verificarPendencias();
-                            } else {
-                                this.mensagemErro =
-                                    "E-mail ou senha incorretos.";
-                            }
-                        } catch (e) {
-                            this.mensagemErro =
-                                "Erro ao conectar com o servidor.";
-                        }
-                    },
-                    logout() {
-                        localStorage.removeItem("token");
-                        token = "";
-                        this.autenticado = false;
-                        this.disciplinaSelecionada = null;
-                        this.listaDisciplinasNomes = [];
-                    },
-                    async configura() {
-                        let lista = await this.obtemListaDisciplinasServidor();
-                        if (lista) {
-                            let x = await this.obtemListaBDlocal();
-                            await this.removeBDlocais(x);
-                            await this.atualizaLista(lista);
-                            for (let a = 0; a < lista.length; a++) {
-                                let dados = await this.dadosDisciplina(
-                                    lista[a],
-                                );
-                                await this.criaBancoDados(lista[a], dados);
-                            }
-                            await this.qtdDisciplinas();
-                            await this.verificarPendencias();
-                        }
-                    },
-                    async selecionarDisciplina(nome) {
-                        this.disciplinaSelecionada = nome;
-                        this.mensagemFeedback = "";
-                        try {
-                            let listaAlunos = await this.dadosDisciplina(nome);
-                            this.alunos = listaAlunos.map((a) => ({
-                                nome: a.aluno,
-                                presente: null,
-                            }));
-                        } catch (e) {
-                            console.error(e);
-                        }
-                    },
-                    marcarPresenca(aluno) {
-                        if (aluno.presente === null) aluno.presente = true;
-                        else if (aluno.presente === true)
-                            aluno.presente = false;
-                        else aluno.presente = true;
-                    },
-                    async salvarLocalmente() {
-                        const db = new PouchDB(this.disciplinaSelecionada);
-                        const docs = this.alunos.map((aluno) => ({
-                            _id: `${this.dataAtual}_${aluno.nome}`,
-                            aluno: aluno.nome,
-                            data: this.dataAtual,
-                            presente: aluno.presente,
-                            tipo: "chamada",
-                            sincronizado: false,
-                        }));
-                        try {
-                            for (const doc of docs) {
-                                try {
-                                    const existente = await db.get(doc._id);
-                                    doc._rev = existente._rev;
-                                } catch (e) {}
-                                await db.put(doc);
-                            }
-                            this.mensagemFeedback = "Salvo localmente!";
-                            this.sincronizacaoPendente = true;
-
-                            // Tenta sincronizar imediatamente
-                            const sucesso = await this.sincronizar();
-                            if (!sucesso) {
-                                this.iniciarTimerSincronizacao();
-                            }
-
-                            setTimeout(
-                                () => (this.mensagemFeedback = ""),
-                                3000,
-                            );
-                        } catch (err) {
-                            this.mensagemFeedback =
-                                "Erro ao salvar localmente.";
-                        }
-                    },
-                    async sincronizar() {
-                        if (!this.isOnline) return false;
-                        let tudoSincronizado = true;
-
-                        for (const nome of this.listaDisciplinasNomes) {
-                            const db = new PouchDB(nome);
-                            try {
-                                const result = await db.allDocs({
-                                    include_docs: true,
-                                });
-                                const pendentes = result.rows
-                                    .map((r) => r.doc)
-                                    .filter(
-                                        (doc) =>
-                                            doc.tipo === "chamada" &&
-                                            doc.sincronizado === false,
-                                    );
-
-                                if (pendentes.length > 0) {
-                                    const docsParaEnviar = pendentes.map(
-                                        (d) => {
-                                            const { _rev, ...limpo } = d;
-                                            return limpo;
-                                        },
-                                    );
-
-                                    await POST(`/sync/${nome}`, {
-                                        docs: docsParaEnviar,
-                                    });
-                                    for (const doc of pendentes) {
-                                        doc.sincronizado = true;
-                                        await db.put(doc);
-                                    }
-                                }
-                            } catch (err) {
-                                console.error(
-                                    `Erro ao sincronizar ${nome}:`,
-                                    err,
-                                );
-                                tudoSincronizado = false;
-                            }
-                        }
-
-                        if (tudoSincronizado) {
-                            this.sincronizacaoPendente = false;
-                            if (this.syncIntervalId) {
-                                clearInterval(this.syncIntervalId);
-                                this.syncIntervalId = null;
-                            }
-                            return true;
-                        }
-                        return false;
-                    },
-                    iniciarTimerSincronizacao() {
-                        if (this.syncIntervalId) return;
-                        console.log(
-                            "Iniciando timer de sincronização (20s)...",
-                        );
-                        this.syncIntervalId = setInterval(async () => {
-                            console.log(
-                                "Tentativa automática de sincronização...",
-                            );
-                            await this.sincronizar();
-                        }, 20000);
-                    },
-                    async verificarPendencias() {
-                        for (const nome of this.listaDisciplinasNomes) {
-                            const db = new PouchDB(nome);
-                            const result = await db.allDocs({
-                                include_docs: true,
-                            });
-                            const temPendencia = result.rows.some(
-                                (r) =>
-                                    r.doc.tipo === "chamada" &&
-                                    !r.doc.sincronizado,
-                            );
-                            if (temPendencia) {
-                                this.sincronizacaoPendente = true;
-                                this.iniciarTimerSincronizacao();
-                                return;
-                            }
-                        }
-                        this.sincronizacaoPendente = false;
-                    },
-                    // --- Auxiliares PouchDB ---
-                    async obtemListaBDlocal() {
-                        let result = await nomesDisciplinas.allDocs({
-                            include_docs: true,
-                        });
-                        try {
-                            return result.rows[0].doc.lista;
-                        } catch (e) {
-                            return [];
-                        }
-                    },
-                    async removeBDlocais(lista) {
-                        if (!lista) return;
-                        for (let a = 0; a < lista.length; a++) {
-                            try {
-                                await new PouchDB(lista[a]).destroy();
-                            } catch (e) {}
-                        }
-                    },
-                    async atualizaLista(lista) {
-                        let doc = { _id: "0", lista: lista };
-                        try {
-                            const existente = await nomesDisciplinas.get(
-                                doc._id,
-                            );
-                            doc._rev = existente._rev;
-                            await nomesDisciplinas.put(doc);
-                        } catch (err) {
-                            await nomesDisciplinas.put(doc);
-                        }
-                    },
-                    async dadosDisciplina(nome) {
-                        return await GET("/disciplinas/" + nome);
-                    },
-                    async criaBancoDados(bd, dados) {
-                        new PouchDB(bd);
-                    },
-                    async obtemListaDisciplinasServidor() {
-                        return await GET("/disciplinas");
-                    },
-                    async qtdDisciplinas() {
-                        try {
-                            let resultado = await nomesDisciplinas.allDocs({
-                                include_docs: true,
-                            });
-                            this.listaDisciplinasNomes =
-                                resultado.rows[0].doc.lista;
-                        } catch (e) {
-                            this.listaDisciplinasNomes = [];
-                        }
-                    },
-                },
-            }).mount("#app");
-        </script>
+        <script src="js/components/Login.js"></script>
+        <script src="js/components/Dashboard.js"></script>
+        <script src="js/components/Chamada.js"></script>
+        <script src="js/app.js"></script>
     </body>
 </html>
