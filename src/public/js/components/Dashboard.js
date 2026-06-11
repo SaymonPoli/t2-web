@@ -1,10 +1,10 @@
 const Dashboard = {
-  props: ["disciplinas"],
-  template: `
+    props: ["disciplinas"],
+    template: `
     <div>
         <div class="area-botoes">
             <button @click="$emit('sincronizar')">Sincronizar Agora</button>
-            <button @click="$emit('configurar')" style="background: #28a745">Iniciar Semestre</button>
+            <button @click="$emit('configurar')" style="background: #28a745">Baixar do servidor</button>
         </div>
         <h3>Minhas Disciplinas</h3>
         <div v-for="nome in disciplinas" :key="nome" class="disciplina-item">

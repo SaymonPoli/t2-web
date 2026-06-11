@@ -1,5 +1,6 @@
 const { createApp } = Vue;
 const nomesDisciplinas = new PouchDB("lista");
+const COUCHDB_URL = "http://admin:123@localhost:5984";
 
 createApp({
     components: { Login, Dashboard, Chamada },
@@ -58,14 +59,24 @@ createApp({
             if (!this.isOnline) return false;
             let tudoOk = true;
             for (const nome of this.listaDisciplinasNomes) {
-                const db = new PouchDB(nome);
-                const res = await db.allDocs({ include_docs: true });
-                const pendentes = res.rows.map(r => r.doc).filter(d => d.tipo === "chamada" && !d.sincronizado);
-                if (pendentes.length > 0) {
-                    try {
-                        await POST(`/sync/${nome}`, { docs: pendentes.map(({_rev, ...d}) => d) });
-                        for (const d of pendentes) { d.sincronizado = true; await db.put(d); }
-                    } catch(e) { tudoOk = false; }
+                const localDB = new PouchDB(nome);
+                const remoteDB = new PouchDB(`${COUCHDB_URL}/${nome}`);
+                
+                try {
+                    // Replicação nativa do PouchDB para o CouchDB
+                    await localDB.replicate.to(remoteDB);
+                    
+                    // Após a replicação, marcamos os documentos locais como sincronizados
+                    // para manter a lógica da UI (opcional, mas mantém compatibilidade)
+                    const res = await localDB.allDocs({ include_docs: true });
+                    const pendentes = res.rows.map(r => r.doc).filter(d => d.tipo === "chamada" && !d.sincronizado);
+                    for (const d of pendentes) {
+                        d.sincronizado = true;
+                        await localDB.put(d);
+                    }
+                } catch(e) { 
+                    console.error(`Erro ao sincronizar ${nome}:`, e);
+                    tudoOk = false; 
                 }
             }
             if (tudoOk) {

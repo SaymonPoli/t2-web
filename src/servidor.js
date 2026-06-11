@@ -125,34 +125,8 @@ app.get("/admin", async (req, res) => {
   }
 });
 
-app.post("/sync/:disciplina", autenticar, async (req, res) => {
-  const { disciplina } = req.params;
-  const prof = professores.find((p) => p.id === req.usuario);
-
-  if (!prof || !prof.disciplinas.includes(disciplina))
-    return res.status(403).send("Acesso Negado");
-
-  try {
-    const db = nano.use(disciplina);
-    const docs = req.body.docs;
-
-    const docsComRev = await Promise.all(
-      docs.map(async (doc) => {
-        try {
-          const existente = await db.get(doc._id);
-          return { ...doc, _rev: existente._rev };
-        } catch (e) {
-          return doc;
-        }
-      }),
-    );
-
-    const response = await db.bulk({ docs: docsComRev });
-    res.json({ message: "OK", details: response });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Nota: A rota /sync/:disciplina foi removida.
+// A sincronização agora é feita via replicação nativa PouchDB -> CouchDB.
 
 app.listen(PORT, () =>
   console.log(`Servidor rodando em http://localhost:${PORT}`),
