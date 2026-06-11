@@ -97,9 +97,6 @@
                         return this.registros.filter(doc => !doc._id.startsWith('_design'));
                     }
                 },
-
-                    },
-                },
                 async mounted() {
                     try {
                         const response = await fetch("/admin");

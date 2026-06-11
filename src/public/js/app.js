@@ -43,7 +43,7 @@ createApp({
             const lista = await GET("/disciplinas");
             if (!lista) return;
             const doc = { _id: "0", lista };
-            try { const ex = await nomesDisciplinas.get("0"); doc._rev = ex._rev; } catch(e){}
+            try { const ex = await nomesDisciplinas.get("0"); doc._rev = ex._rev; } catch (e) { }
             await nomesDisciplinas.put(doc);
             for (const d of lista) { new PouchDB(d); }
             await this.atualizarListaLocal();
@@ -53,7 +53,7 @@ createApp({
             try {
                 const res = await nomesDisciplinas.get("0");
                 this.listaDisciplinasNomes = res.lista;
-            } catch(e) { this.listaDisciplinasNomes = []; }
+            } catch (e) { this.listaDisciplinasNomes = []; }
         },
         async sincronizar() {
             if (!this.isOnline) return false;
@@ -61,22 +61,19 @@ createApp({
             for (const nome of this.listaDisciplinasNomes) {
                 const localDB = new PouchDB(nome);
                 const remoteDB = new PouchDB(`${COUCHDB_URL}/${nome}`);
-                
+
                 try {
-                    // Replicação nativa do PouchDB para o CouchDB
                     await localDB.replicate.to(remoteDB);
-                    
-                    // Após a replicação, marcamos os documentos locais como sincronizados
-                    // para manter a lógica da UI (opcional, mas mantém compatibilidade)
+
                     const res = await localDB.allDocs({ include_docs: true });
                     const pendentes = res.rows.map(r => r.doc).filter(d => d.tipo === "chamada" && !d.sincronizado);
                     for (const d of pendentes) {
                         d.sincronizado = true;
                         await localDB.put(d);
                     }
-                } catch(e) { 
+                } catch (e) {
                     console.error(`Erro ao sincronizar ${nome}:`, e);
-                    tudoOk = false; 
+                    tudoOk = false;
                 }
             }
             if (tudoOk) {
